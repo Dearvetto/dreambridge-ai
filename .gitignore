@@ -179,3 +179,16 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# secrets
+.env
+.env.*
+
+# Firebase local stuff
+.firebase/
+firebase-debug.log
+
+# misc
+node_modules/
+Thumbs.db
+.DS_Store

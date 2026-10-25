@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DreamBridge AI</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>DreamBridge AI</h1>
+    <p class="tagline">Connecting parents & children's dreams</p>
+
+    <form id="auth-form">
+      <div id="signup-fields">
+        <input id="name" type="text" placeholder="Your name">
+        <select id="role">
+          <option value="child">I'm a Child</option>
+          <option value="parent">I'm a Parent</option>
+        </select>
+        <input id="family-code" type="text" placeholder="Family code (e.g. SHARMA1)">
+      </div>
+      <input id="email" type="email" placeholder="Email" required>
+      <input id="password" type="password" placeholder="Password (min 6 chars)" required>
+      <button id="submit-btn" type="submit">Sign up</button>
+    </form>
+
+    <p id="error" class="error"></p>
+    <p><a href="#" id="toggle-link">Already have an account? Log in</a></p>
+  </main>
+  <script type="module" src="js/auth.js"></script>
+</body>
+</html>
