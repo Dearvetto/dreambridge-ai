@@ -192,3 +192,9 @@ firebase-debug.log
 node_modules/
 Thumbs.db
 .DS_Store
+
+# extra secret insurance
+*.pem
+*.key
+serviceAccount*.json
+*-firebase-adminsdk-*.json
