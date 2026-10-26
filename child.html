@@ -7,16 +7,185 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="card">
+  <main class="card wide">
     <h1 id="welcome">Loading...</h1>
-    <p>Your dream space (coming Day 2)</p>
-    <button id="logout-btn">Log out</button>
+    <p class="tagline">What do you dream of becoming? This is your private space.</p>
+
+    <form id="dream-form">
+      <input id="title" type="text" placeholder="My dream (e.g. Become a game designer)" required>
+      <textarea id="description" rows="4" placeholder="Tell us more: why does this excite you?" required></textarea>
+      <input id="interests" type="text" placeholder="Interests & skills (e.g. drawing, coding, music)">
+      <button id="share-btn" type="submit">Share my dream</button>
+    </form>
+    <p id="msg" class="error"></p>
+
+    <h2>My dreams</h2>
+    <ul id="dream-list" class="dream-list"></ul>
+
+    <button id="logout-btn" class="secondary">Log out</button>
   </main>
+
   <script type="module">
     import { requireRole, logout } from "./js/session.js";
+    import { db } from "./js/firebase-config.js";
+    import {
+      collection, addDoc, updateDoc, deleteDoc, doc,
+      query, where, onSnapshot, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    let currentUser, currentProfile;
+    let dreams = [];
+    let editingId = null;
+
+    const msg = document.getElementById("msg");
+    const list = document.getElementById("dream-list");
+    const shareBtn = document.getElementById("share-btn");
+
     requireRole("child", (user, profile) => {
+      currentUser = user;
+      currentProfile = profile;
       document.getElementById("welcome").textContent = "Hi " + profile.name + "!";
+
+      // live listener: runs now and again whenever the data changes
+      const q = query(collection(db, "dreams"), where("uid", "==", user.uid));
+      onSnapshot(
+        q,
+        (snap) => {
+          dreams = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          dreams.sort(
+            (a, b) =>
+              (b.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER) -
+              (a.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER)
+          );
+          render();
+        },
+        (err) => { msg.textContent = err.message; }
+      );
     });
+
+    // small helper to build an element with text
+    function el(tag, text, className) {
+      const node = document.createElement(tag);
+      if (text) node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    }
+
+    function render() {
+      const items = [];
+
+      if (dreams.length === 0) {
+        items.push(el("li", "No dreams yet. Share your first one above!", "dream-item"));
+      }
+
+      dreams.forEach((d) => {
+        items.push(d.id === editingId ? editItem(d) : viewItem(d));
+      });
+
+      list.replaceChildren(...items);
+    }
+
+    function viewItem(d) {
+      const li = el("li", "", "dream-item");
+      const actions = el("div", "", "actions");
+
+      const editBtn = el("button", "Edit");
+      editBtn.type = "button";
+      editBtn.addEventListener("click", () => { editingId = d.id; render(); });
+
+      const delBtn = el("button", "Delete", "danger");
+      delBtn.type = "button";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this dream? This can't be undone.")) return;
+        try {
+          await deleteDoc(doc(db, "dreams", d.id));
+        } catch (err) {
+          msg.textContent = err.message;
+        }
+      });
+
+      actions.append(editBtn, delBtn);
+      li.append(
+        el("h3", d.title),
+        el("p", d.description),
+        el("small", d.interests ? "Interests: " + d.interests : ""),
+        actions
+      );
+      return li;
+    }
+
+    function editItem(d) {
+      const li = el("li", "", "dream-item");
+
+      const titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.value = d.title;
+
+      const descInput = document.createElement("textarea");
+      descInput.rows = 4;
+      descInput.value = d.description;
+
+      const interestsInput = document.createElement("input");
+      interestsInput.type = "text";
+      interestsInput.value = d.interests || "";
+
+      const actions = el("div", "", "actions");
+
+      const saveBtn = el("button", "Save");
+      saveBtn.type = "button";
+      saveBtn.addEventListener("click", async () => {
+        const title = titleInput.value.trim();
+        const description = descInput.value.trim();
+        if (!title || !description) {
+          msg.textContent = "Title and description can't be empty.";
+          return;
+        }
+        try {
+          await updateDoc(doc(db, "dreams", d.id), {
+            title,
+            description,
+            interests: interestsInput.value.trim(),
+            updatedAt: serverTimestamp()
+          });
+          msg.textContent = "";
+          editingId = null;
+          render();
+        } catch (err) {
+          msg.textContent = err.message;
+        }
+      });
+
+      const cancelBtn = el("button", "Cancel", "secondary");
+      cancelBtn.type = "button";
+      cancelBtn.addEventListener("click", () => { editingId = null; render(); });
+
+      actions.append(saveBtn, cancelBtn);
+      li.append(titleInput, descInput, interestsInput, actions);
+      return li;
+    }
+
+    document.getElementById("dream-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+      shareBtn.disabled = true; // blocks accidental double-submits
+      try {
+        await addDoc(collection(db, "dreams"), {
+          uid: currentUser.uid,
+          familyCode: currentProfile.familyCode,
+          childName: currentProfile.name,
+          title: document.getElementById("title").value.trim(),
+          description: document.getElementById("description").value.trim(),
+          interests: document.getElementById("interests").value.trim(),
+          createdAt: serverTimestamp()
+        });
+        e.target.reset();
+      } catch (err) {
+        msg.textContent = err.message;
+      } finally {
+        shareBtn.disabled = false;
+      }
+    });
+
     document.getElementById("logout-btn").addEventListener("click", logout);
   </script>
 </body>
