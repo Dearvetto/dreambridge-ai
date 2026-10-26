@@ -183,6 +183,7 @@ cython_debug/
 # secrets
 .env
 .env.*
+!.env.example
 
 # Firebase local stuff
 .firebase/
