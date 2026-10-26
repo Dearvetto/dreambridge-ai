@@ -7,16 +7,154 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="card">
+  <main class="card wide">
     <h1 id="welcome">Loading...</h1>
-    <p>Your child's dreams (coming Day 4)</p>
-    <button id="logout-btn">Log out</button>
+    <p class="tagline">See what your children dream of, explained simply.</p>
+
+    <label class="lang-row">
+      AI language:
+      <select id="language">
+        <option>English</option>
+        <option>Hindi</option>
+        <option>Gujarati</option>
+      </select>
+    </label>
+    <p id="msg" class="error"></p>
+
+    <h2>Family dreams</h2>
+    <ul id="dream-list" class="dream-list"></ul>
+
+    <button id="logout-btn" class="secondary">Log out</button>
   </main>
+
   <script type="module">
     import { requireRole, logout } from "./js/session.js";
+    import { db } from "./js/firebase-config.js";
+    import {
+      collection, query, where, onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const API_URL = "http://localhost:8000";
+
+    let dreams = [];
+    const results = {};        // { dreamId: { explain: "...", career: "..." } }
+    const busy = new Set();    // keys like "dreamId:explain" while waiting
+
+    const msg = document.getElementById("msg");
+    const list = document.getElementById("dream-list");
+    const languageSelect = document.getElementById("language");
+
     requireRole("parent", (user, profile) => {
       document.getElementById("welcome").textContent = "Hi " + profile.name + "!";
+
+      const q = query(
+        collection(db, "dreams"),
+        where("familyCode", "==", profile.familyCode)
+      );
+      onSnapshot(
+        q,
+        (snap) => {
+          dreams = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          dreams.sort(
+            (a, b) =>
+              (b.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER) -
+              (a.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER)
+          );
+          render();
+        },
+        (err) => { msg.textContent = err.message; }
+      );
     });
+
+    function el(tag, text, className) {
+      const node = document.createElement(tag);
+      if (text) node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    }
+
+    function render() {
+      const items = [];
+
+      if (dreams.length === 0) {
+        items.push(el("li", "No dreams shared in your family yet.", "dream-item"));
+      }
+
+      dreams.forEach((d) => {
+        const li = el("li", "", "dream-item");
+        li.append(
+          el("h3", d.title),
+          el("small", "Shared by " + (d.childName || "your child"), "child-tag"),
+          el("p", d.description),
+          el("small", d.interests ? "Interests: " + d.interests : "")
+        );
+
+        const actions = el("div", "", "actions");
+        actions.append(
+          aiButton(d, "explain", "Explain this dream"),
+          aiButton(d, "career", "Career ideas")
+        );
+        li.append(actions);
+
+        const r = results[d.id] || {};
+        if (r.explain) li.append(aiBox("What this means", r.explain));
+        if (r.career) li.append(aiBox("Career ideas", r.career));
+
+        items.push(li);
+      });
+
+      list.replaceChildren(...items);
+    }
+
+    function aiButton(d, kind, label) {
+      const key = d.id + ":" + kind;
+      const btn = el("button", busy.has(key) ? "Thinking..." : label);
+      btn.type = "button";
+      btn.disabled = busy.has(key);
+      btn.addEventListener("click", () => callAI(d, kind));
+      return btn;
+    }
+
+    function aiBox(title, text) {
+      const box = el("div", "", "ai-box");
+      box.append(el("strong", title), el("p", text));
+      return box;
+    }
+
+    async function callAI(d, kind) {
+      const key = d.id + ":" + kind;
+      const path = kind === "explain" ? "/explain" : "/career-advice";
+      msg.textContent = "";
+      busy.add(key);
+      render();
+
+      try {
+        const res = await fetch(API_URL + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            childName: d.childName || "your child",
+            title: d.title,
+            description: d.description,
+            interests: d.interests || "",
+            language: languageSelect.value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "The AI server returned an error.");
+        results[d.id] = { ...(results[d.id] || {}), [kind]: data.explanation };
+      } catch (err) {
+        if (err instanceof TypeError) {
+          msg.textContent = "Couldn't reach the AI server. Is the Python backend running?";
+        } else {
+          msg.textContent = err.message;
+        }
+      } finally {
+        busy.delete(key);
+        render();
+      }
+    }
+
     document.getElementById("logout-btn").addEventListener("click", logout);
   </script>
 </body>

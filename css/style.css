@@ -75,3 +75,14 @@ button.secondary { background: #7a8fa3; }
 }
 button.danger { background: #c0392b; }
 button.danger:hover { background: #992d22; }
+.lang-row { display: block; text-align: left; color: #345; margin: 8px 0; }
+.lang-row select { width: auto; margin-left: 8px; padding: 6px 10px; }
+.child-tag { display: block; color: #1a73c0; margin-bottom: 6px; }
+.ai-box {
+  background: #fff;
+  border: 1px solid #cfe3f5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+}
+.ai-box p { white-space: pre-wrap; margin: 6px 0 0; }
